@@ -31,16 +31,19 @@ if [ "$#" -ne 2 ]; then
     cat_readme
     exit 1
 fi
-
+mkdir -p /tmp/noge/
 DELIVERY_DIR=$(my_readlink "$1")
-REPORTS_DIR=$(my_readlink "$2")
+REPORTS_DIR=/tmp/noge/
 DOCKER_SOCKET_PATH=/var/run/docker.sock
 HAS_SOCKET_ACCESS=$(test -r "$DOCKER_SOCKET_PATH"; echo "$?")
 IMAGE_NAME="ghcr.io/epitech/coding-style-checker:latest"
-EXPORT_FILE="$REPORTS_DIR/coding-style-reports.log"
+EXPORT_FILE="/tmp/noge/coding-style-reports.log"
 BASE_EXEC_CMD="docker"
 
 rm -f "$EXPORT_FILE"
+chown -R $USER:$USER "$REPORTS_DIR"
+chmod -R 777 "$REPORTS_DIR"
+
 
 if [ "$HAS_SOCKET_ACCESS" -ne 0 ]; then
     echo "WARNING: Socket access is denied"
@@ -62,7 +65,6 @@ LOCAL_IMAGE_DATE=$(docker inspect --format='{{.Created}}' "$IMAGE_NAME" 2>/dev/n
 REMOTE_IMAGE_DATE=$(curl -sI "https://ghcr.io/v2/epitech/coding-style-checker/manifests/latest" | grep -i "last-modified" | cut -d' ' -f2-)
 
 if [ -z "$LOCAL_IMAGE_DATE" ] || [ "$(date -d "$REMOTE_IMAGE_DATE" +%s)" -gt "$(date -d "$LOCAL_IMAGE_DATE" +%s)" ]; then
-    echo "Downloading new image and cleaning old one..."
     echo "Downloading new image and cleaning old one..."
 	tput setaf 1
 	echo -ne " /======================================\\
@@ -92,8 +94,7 @@ $BASE_EXEC_CMD run --rm -i -v "$DELIVERY_DIR:/mnt/delivery" -v "$REPORTS_DIR:/mn
     tput setaf 2
     echo "__**//*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/CODING STYLE BY NOGE\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\\**__"
         tput sgr0
-else
-    cat_readme
-    echo "__**//*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/CODING STYLE BY NOGE\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\\**__"
     tput sgr0
-fi
+    cat /tmp/noge/coding-style-reports.log
+
+    
