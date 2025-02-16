@@ -95,6 +95,7 @@ $BASE_EXEC_CMD run --rm -i -v "$DELIVERY_DIR:/mnt/delivery" -v "$REPORTS_DIR:/mn
     echo "__**//*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/CODING STYLE BY NOGE\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\\**__"
         tput sgr0
     tput sgr0
+if [[ -f "/tmp/noge/coding-style-reports.log" ]]; then
     cat /tmp/noge/coding-style-reports.log
-
+fi
     
