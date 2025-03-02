@@ -37,42 +37,64 @@ LOCAL_BINARY="/usr/local/bin/"
 
 function update_lambdananas() {
     echo "Updating lambdananas..."
-    LAMBDA_PATH=$(sudo find /var/lib/docker/overlay2/ -name "lambdananas" 2>/dev/null | head -n 1)
-    
-    if [[ -z "$LAMBDA_PATH" ]]; then
-        echo "Error: lambdananas binary not found in Docker filesystem."
-        return 1
+
+    if ! command -v docker &> /dev/null; then
+        echo "Error: Docker is not installed. Please install it and retry."
+        echo "Use this link to search how to install docker on your pc : https://docs.docker.com/engine/install/ "
     fi
 
+    if ! systemctl is-active --quiet docker; then
+        echo " Error: Docker service is not running. Start it with: sudo systemctl start docker"
+        read -p "Do you want to proceed? (yes/no) " yn
+    case $yn in 
+        yes | Y | y | Yes | YES) 
+            sudo systemctl start docker
+            ;;
+        *) 
+            echo "Skipping..."
+            ;;
+    esac
+    fi
+
+    IMAGE_NAME="ghcr.io/epitech/coding-style-checker:latest"
+    if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
+        echo "🔄 Downloading Docker image for lambdananas..."
+        docker pull "$IMAGE_NAME" || { echo "❌ Failed to pull Docker image."; exit 1; }
+    fi
+
+    LAMBDA_PATH=$(sudo find /var/lib/docker/overlay2/ -name "lambdananas" 2>/dev/null | head -n 1)
+
     sudo cp "$LAMBDA_PATH" ./lambdananas
+
+    if [[ ! -f "./lambdananas" ]]; then
+        echo "Error: Failed to extract lambdananas from Docker."
+        exit 1
+    fi
+
     chmod +x lambdananas
     sudo mv lambdananas "$LOCAL_BINARY"
+
+    echo "Lambdananas successfully updated!"
 }
 
 if ! command -v lambdananas &> /dev/null; then
-    echo "lambdananas not found. Installing via Docker..."
-
+    echo "⚠️  lambdananas not found. Installing via Docker..."
     update_lambdananas
-
-    if ! command -v lambdananas &> /dev/null; then
-        echo "Installation failed."
-        exit 1
-    fi
 fi
 
-if [ "$#" -eq 2 ] && [[ "$1" == "-hs" || "$1" == "--haskell" ]]; then
-    echo "Detected Haskell file. Running lambdananas..."
+if [[ "$#" -eq 2 && ( "$1" == "-hs" || "$1" == "--haskell" ) ]]; then
+    echo "📌 Detected Haskell file. Running lambdananas..."
     excluded_dirs="Setup.hs:setup.hs:.git:.stack-work:test:tests:bonus"
     lambdananas -o vera --exclude "$excluded_dirs" "$2"
     exit 0
 fi
 
-if [ "$#" -eq 1 ] && [ "$1" == "--help" ]; then
+if [[ "$#" -eq 1 && "$1" == "--help" ]]; then
     cat_readme
     exit 0
 fi
 
-if [ "$#" -ne 2 ]; then
+if [[ "$#" -ne 2 ]]; then
     cat_readme
     exit 1
 fi
