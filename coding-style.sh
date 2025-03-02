@@ -9,7 +9,7 @@
 
 
 function my_readlink() {
-    cd "$1" 2>/dev/null || { echo "Error: Cannot cd into $1"; exit 1; }
+    cd "$1"
     pwd
     cd - > /dev/null
 }
