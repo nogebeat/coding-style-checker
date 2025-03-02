@@ -63,14 +63,11 @@ function update_lambdananas() {
     fi
 
     LAMBDA_PATH=$(sudo find /var/lib/docker/overlay2/ -name "lambdananas" 2>/dev/null | head -n 1)
-
     sudo cp "$LAMBDA_PATH" ./lambdananas
-
     if [[ ! -f "./lambdananas" ]]; then
         echo "Error: Failed to extract lambdananas from Docker."
         exit 1
     fi
-
     chmod +x lambdananas
     sudo mv lambdananas "$LOCAL_BINARY"
 
