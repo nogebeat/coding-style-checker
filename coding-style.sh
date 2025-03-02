@@ -1,30 +1,58 @@
 #!/bin/bash
 
+##
+## EPITECH PROJECT, 2025
+## Epitech
+## File description:
+## coding-style-checker
+##
+
+
 function my_readlink() {
-    cd "$1"
+    cd "$1" 2>/dev/null || { echo "Error: Cannot cd into $1"; exit 1; }
     pwd
     cd - > /dev/null
 }
 
 function cat_readme() {
     echo ""
-    echo "Usage: $(basename "$0") DELIVERY_DIR REPORTS_DIR [HASKELL_FILE]"
-    echo -e "\tDELIVERY_DIR\tShould be the directory where your project files are"
-    echo -e "\tREPORTS_DIR\tShould be the directory where we output the reports"
-    echo -e "\tHASKELL_FILE\t(Optional) If a Haskell file is provided, it will be checked with lambdananas"
-    echo -e "\t\t\tTake note that existing reports will be overridden"
+    echo "Usage: $(basename "$0") [OPTIONS] DELIVERY_DIR REPORTS_DIR"
     echo ""
+    echo "Arguments:"
+    echo -e "\tDELIVERY_DIR\tPath to the directory containing your project files."
+    echo -e "\tREPORTS_DIR\tPath to the directory where reports will be saved."
+    echo ""
+    echo "Options:"
+    echo -e "\t-hs, --haskell DELIVERY_DIR \t(Optional) Run lambdananas on the specified Haskell directory."
+    echo -e "\t--help\t\t\tShow this help message and exit."
+    echo ""
+    echo "Notes:"
+    echo -e "\t- Running with the Haskell option (-hs)"
+    echo -e "\t- Existing reports in the output directory will be overwritten."
+    echo ""
+    echo "© 2025 Epitech. Tous droits réservés."
 }
 
-IMAGE_HASKELL="ghcr.io/nogebeat/lambdananas:latest"
-LOCAL_BINARY="/usr/local/bin/lambdananas"
+LOCAL_BINARY="/usr/local/bin/"
+
+function update_lambdananas() {
+    echo "Updating lambdananas..."
+    LAMBDA_PATH=$(sudo find /var/lib/docker/overlay2/ -name "lambdananas" 2>/dev/null | head -n 1)
+    
+    if [[ -z "$LAMBDA_PATH" ]]; then
+        echo "Error: lambdananas binary not found in Docker filesystem."
+        return 1
+    fi
+
+    sudo cp "$LAMBDA_PATH" ./lambdananas
+    chmod +x lambdananas
+    sudo mv lambdananas "$LOCAL_BINARY"
+}
 
 if ! command -v lambdananas &> /dev/null; then
     echo "lambdananas not found. Installing via Docker..."
 
-    docker run --rm --entrypoint cat "$IMAGE_HASKELL" /usr/local/bin/lambdananas > lambdananas
-    chmod +x lambdananas
-    sudo mv lambdananas "$LOCAL_BINARY"
+    update_lambdananas
 
     if ! command -v lambdananas &> /dev/null; then
         echo "Installation failed."
@@ -32,14 +60,14 @@ if ! command -v lambdananas &> /dev/null; then
     fi
 fi
 
-
-if [ "$#" -eq 1 ] && [[ "$1" == *.hs ]]; then
+if [ "$#" -eq 2 ] && [[ "$1" == "-hs" || "$1" == "--haskell" ]]; then
     echo "Detected Haskell file. Running lambdananas..."
-    lambdananas "$1"
+    excluded_dirs="Setup.hs:setup.hs:.git:.stack-work:test:tests:bonus"
+    lambdananas -o vera --exclude "$excluded_dirs" "$2"
     exit 0
 fi
 
-if [ "$#" == 1 ] && [ "$1" == "--help" ]; then
+if [ "$#" -eq 1 ] && [ "$1" == "--help" ]; then
     cat_readme
     exit 0
 fi
@@ -59,7 +87,7 @@ EXPORT_FILE="/tmp/noge/coding-style-reports.log"
 BASE_EXEC_CMD="docker"
 
 rm -f "$EXPORT_FILE"
-chown -R $USER:$USER "$REPORTS_DIR"
+chown -R "$USER:$USER" "$REPORTS_DIR"
 chmod -R 777 "$REPORTS_DIR"
 
 if [ "$HAS_SOCKET_ACCESS" -ne 0 ]; then
@@ -81,21 +109,27 @@ fi
 LOCAL_IMAGE_DATE=$(docker inspect --format='{{.Created}}' "$IMAGE_NAME" 2>/dev/null)
 REMOTE_IMAGE_DATE=$(curl -sI "https://ghcr.io/v2/epitech/coding-style-checker/manifests/latest" | grep -i "last-modified" | cut -d' ' -f2-)
 
-if [ -z "$LOCAL_IMAGE_DATE" ] || [ "$(date -d "$REMOTE_IMAGE_DATE" +%s)" -gt "$(date -d "$LOCAL_IMAGE_DATE" +%s)" ]; then
-    echo "Downloading new image and cleaning old one..."
-    $BASE_EXEC_CMD pull "$IMAGE_NAME" && $BASE_EXEC_CMD image prune -f
-    echo "Download OK"
-    tput setaf 2
-    echo "**/*/*/*/*/*/*/*/*/*/*/* CODING STYLE CHECKER EPITECH */*/*/*/*/*/*/*/*/*/*/*/**"
-    tput sgr0
-else
-    tput setaf 1
+if [[ -n "$REMOTE_IMAGE_DATE" ]] && [[ -n "$LOCAL_IMAGE_DATE" ]]; then
+    LOCAL_TIMESTAMP=$(date -d "$LOCAL_IMAGE_DATE" +%s 2>/dev/null || echo 0)
+    REMOTE_TIMESTAMP=$(date -d "$REMOTE_IMAGE_DATE" +%s 2>/dev/null || echo 0)
+
+    if [ "$REMOTE_TIMESTAMP" -gt "$LOCAL_TIMESTAMP" ]; then
+        echo "Downloading new image and cleaning old one..."
+        $BASE_EXEC_CMD pull "$IMAGE_NAME" && $BASE_EXEC_CMD image prune -f
+        update_lambdananas
+        echo "Download OK"
+    fi
 fi
+
+tput setaf 2
+echo "**/*/*/*/*/*/*/*/*/*/*/* CODING STYLE CHECKER EPITECH */*/*/*/*/*/*/*/*/*/*/*/**"
+tput sgr0
 
 $BASE_EXEC_CMD run --rm -i -v "$DELIVERY_DIR:/mnt/delivery" -v "$REPORTS_DIR:/mnt/reports" "$IMAGE_NAME" "/mnt/delivery" "/mnt/reports"
 
 [[ -f "$EXPORT_FILE" ]] && echo "$(wc -l < "$EXPORT_FILE") coding style error(s) reported in "$EXPORT_FILE", $(tput sgr0; tput setaf 9; grep -c ": MAJOR:" "$EXPORT_FILE") major, $(tput sgr0; tput setaf 27; grep -c ": MINOR:" "$EXPORT_FILE") minor, $(tput sgr0; tput setaf 11; grep -c ": INFO:" "$EXPORT_FILE") info"
-tput setaf 2
+tput sgr0; echo ""
+
 if [[ -f "/tmp/noge/coding-style-reports.log" ]]; then
     cat /tmp/noge/coding-style-reports.log
 fi
