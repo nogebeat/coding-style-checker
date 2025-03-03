@@ -1,0 +1,139 @@
+name: Code Style Check in Bash
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test-bash-script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Bash script
+        run: |
+          chmod +x ./coding-style.sh
+          shellcheck ./coding-style.sh || echo "ShellCheck found issues, but continuing workflow"
+
+  test-c-repo:
+    runs-on: ubuntu-latest
+    needs: test-bash-script
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Docker
+        run: |
+          if ! command -v docker &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y docker.io
+            sudo systemctl start docker
+            sudo systemctl enable docker
+          fi
+
+      - name: Clone C repository
+        run: |
+          git clone https://github.com/examplehub/C.git c-project
+          
+      - name: Run coding style checker on C code
+        id: run-c-check
+        run: |
+          chmod +x ./coding-style.sh
+          mkdir -p reports
+          output=$(./coding-style.sh c-project reports 2>&1)
+          echo "$output"
+          
+          if echo "$output" | grep -q "📌 Running C Coding Style ..."; then
+            echo "C Style check started correctly"
+          else
+            echo "Error: C Style check didn't start correctly"
+            exit 1
+          fi
+          
+          if [[ -f "/tmp/noge/coding-style-reports.log" ]]; then
+            errors=$(grep -c ":" /tmp/noge/coding-style-reports.log || echo "0")
+            echo "Found $errors coding style errors in C code"
+            echo "errors=$errors" >> $GITHUB_OUTPUT
+          else
+            echo "No coding style errors found or report not generated"
+            echo "errors=0" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload C style check results
+        uses: actions/upload-artifact@v4
+        with:
+          name: c-style-check-report
+          path: |
+            reports/
+            /tmp/noge/coding-style-reports.log
+          if-no-files-found: warn
+          retention-days: 5
+
+  test-haskell-repo:
+    runs-on: ubuntu-latest
+    needs: test-bash-script
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Docker
+        run: |
+          if ! command -v docker &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y docker.io
+            sudo systemctl start docker
+            sudo systemctl enable docker
+          fi
+
+      - name: Clone Haskell repository
+        run: |
+          git clone https://github.com/marklnichols/haskell-examples.git haskell-project
+          
+      - name: Run coding style checker on Haskell code
+        id: run-haskell-check
+        run: |
+          chmod +x ./coding-style.sh
+          output=$(./coding-style.sh -hs haskell-project 2>&1)
+          echo "$output"
+          
+          if echo "$output" | grep -q "📌 Running Haskell Coding Style ..."; then
+            echo "Haskell Style check started correctly"
+          else
+            echo "Error: Haskell Style check didn't start correctly"
+            exit 1
+          fi
+          
+          if echo "$output" | grep -q "error"; then
+            echo "Found coding style errors in Haskell code"
+            echo "has_errors=true" >> $GITHUB_OUTPUT
+          else
+            echo "No coding style errors found in Haskell code"
+            echo "has_errors=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Upload Haskell style check results
+        uses: actions/upload-artifact@v4
+        with:
+          name: haskell-style-check-report
+          path: /tmp/noge/
+          if-no-files-found: warn
+          retention-days: 5
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [test-c-repo, test-haskell-repo]
+    if: always()
+    steps:
+      - name: Check workflow status
+        run: |
+          if [[ "${{ needs.test-c-repo.result }}" == "success" && "${{ needs.test-haskell-repo.result }}" == "success" ]]; then
+            echo "All checks passed! Style check completed successfully."
+            echo "Note: Even if coding style errors were found, the workflow is considered successful if the checks ran properly."
+          else
+            echo "Some checks failed to execute properly. Check the logs for details."
+            exit 1
+          fi
