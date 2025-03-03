@@ -7,6 +7,7 @@
 ## coding-style-checker
 ##
 
+BASE_EXEC_CMD="docker"
 
 function my_readlink() {
     cd "$1"
@@ -33,122 +34,96 @@ function cat_readme() {
     echo "© 2025 Epitech. Tous droits réservés."
 }
 
-LOCAL_BINARY="/usr/local/bin/"
-
-function update_lambdananas() {
-    echo "Updating lambdananas..."
-
-    if ! command -v docker &> /dev/null; then
-        echo "Error: Docker is not installed. Please install it and retry."
-        echo "Use this link to search how to install docker on your pc : https://docs.docker.com/engine/install/ "
-    fi
-
-    if ! systemctl is-active --quiet docker; then
-        echo " Error: Docker service is not running. Start it with: sudo systemctl start docker"
-        read -p "Do you want to proceed? (yes/no) " yn
-    case $yn in 
-        yes | Y | y | Yes | YES) 
-            sudo systemctl start docker
-            ;;
-        *) 
-            echo "Skipping..."
-            ;;
-    esac
-    fi
-
-    IMAGE_NAME="ghcr.io/epitech/coding-style-checker:latest"
-    if ! docker image inspect "$IMAGE_NAME" &>/dev/null; then
-        echo "🔄 Downloading Docker image for lambdananas..."
-        docker pull "$IMAGE_NAME" || { echo "❌ Failed to pull Docker image."; exit 1; }
-    fi
-
-    LAMBDA_PATH=$(sudo find /var/lib/docker/overlay2/ -name "lambdananas" 2>/dev/null | head -n 1)
-    sudo cp "$LAMBDA_PATH" ./lambdananas
-    if [[ ! -f "./lambdananas" ]]; then
-        echo "Error: Failed to extract lambdananas from Docker."
-        exit 1
-    fi
-    chmod +x lambdananas
-    sudo mv lambdananas "$LOCAL_BINARY"
-
-    echo "Lambdananas successfully updated!"
-}
-
-if ! command -v lambdananas &> /dev/null; then
-    echo "⚠️  lambdananas not found. Installing via Docker..."
-    update_lambdananas
-fi
-
-if [[ "$#" -eq 2 && ( "$1" == "-hs" || "$1" == "--haskell" ) ]]; then
-    echo "📌 Detected Haskell file. Running lambdananas..."
-    excluded_dirs="Setup.hs:setup.hs:.git:.stack-work:test:tests:bonus"
-    lambdananas -o vera --exclude "$excluded_dirs" "$2"
-    exit 0
-fi
 
 if [[ "$#" -eq 1 && "$1" == "--help" ]]; then
     cat_readme
     exit 0
 fi
 
-if [[ "$#" -ne 2 ]]; then
+if [[ "$#" -gt 2 ]]; then
     cat_readme
     exit 1
 fi
 
-mkdir -p /tmp/noge/
-DELIVERY_DIR=$(my_readlink "$1")
-REPORTS_DIR=/tmp/noge/
-DOCKER_SOCKET_PATH=/var/run/docker.sock
-HAS_SOCKET_ACCESS=$(test -r "$DOCKER_SOCKET_PATH"; echo "$?")
-IMAGE_NAME="ghcr.io/epitech/coding-style-checker:latest"
-EXPORT_FILE="/tmp/noge/coding-style-reports.log"
-BASE_EXEC_CMD="docker"
+function pull_docker() {
+    mkdir -p /tmp/noge/
+    DELIVERY_DIR=$(my_readlink "$1")
+    REPORTS_DIR="/tmp/noge/"
+    DOCKER_SOCKET_PATH="/var/run/docker.sock"
+    HAS_SOCKET_ACCESS=$(test -r "$DOCKER_SOCKET_PATH"; echo "$?")
+    IMAGE_NAME="ghcr.io/epitech/coding-style-checker:latest"
+    EXPORT_FILE="/tmp/noge/coding-style-reports.log"
 
-rm -f "$EXPORT_FILE"
-chown -R "$USER:$USER" "$REPORTS_DIR"
-chmod -R 777 "$REPORTS_DIR"
+    rm -f "$EXPORT_FILE"
+    chown -R "$USER:$USER" "$REPORTS_DIR"
+    chmod -R 777 "$REPORTS_DIR"
 
-if [ "$HAS_SOCKET_ACCESS" -ne 0 ]; then
-    echo "WARNING: Socket access is denied"
-    echo "To fix this, add the current user to the docker group: sudo usermod -a -G docker $USER"
-    read -p "Do you want to proceed? (yes/no) " yn
-    case $yn in 
-        yes | Y | y | Yes | YES) 
-            sudo usermod -a -G docker "$USER"
-            echo "You must reboot your computer for the changes to take effect."
-            ;;
-        *) 
-            echo "Skipping..."
-            ;;
-    esac
-    BASE_EXEC_CMD="sudo ${BASE_EXEC_CMD}"
-fi
-
-LOCAL_IMAGE_DATE=$(docker inspect --format='{{.Created}}' "$IMAGE_NAME" 2>/dev/null)
-REMOTE_IMAGE_DATE=$(curl -sI "https://ghcr.io/v2/epitech/coding-style-checker/manifests/latest" | grep -i "last-modified" | cut -d' ' -f2-)
-
-if [[ -n "$REMOTE_IMAGE_DATE" ]] && [[ -n "$LOCAL_IMAGE_DATE" ]]; then
-    LOCAL_TIMESTAMP=$(date -d "$LOCAL_IMAGE_DATE" +%s 2>/dev/null || echo 0)
-    REMOTE_TIMESTAMP=$(date -d "$REMOTE_IMAGE_DATE" +%s 2>/dev/null || echo 0)
-
-    if [ "$REMOTE_TIMESTAMP" -gt "$LOCAL_TIMESTAMP" ]; then
-        echo "Downloading new image and cleaning old one..."
-        $BASE_EXEC_CMD pull "$IMAGE_NAME" && $BASE_EXEC_CMD image prune -f
-        update_lambdananas
-        echo "Download OK"
+    if [[ "$HAS_SOCKET_ACCESS" -ne 0 ]]; then
+        echo "WARNING: Socket access is denied"
+        echo "To fix this, add the current user to the docker group: sudo usermod -a -G docker $USER"
+        read -rp "Do you want to proceed? (yes/no) " yn
+        case $yn in 
+            yes | Y | y | Yes | YES) 
+                sudo usermod -a -G docker "$USER"
+                echo "You must reboot your computer for the changes to take effect."
+                ;;
+            *) 
+                echo "Skipping..."
+                ;;
+        esac
+        BASE_EXEC_CMD="sudo ${BASE_EXEC_CMD}"
     fi
-fi
+
+    LOCAL_IMAGE_DATE=$(docker inspect --format='{{.Created}}' "$IMAGE_NAME" 2>/dev/null)
+    REMOTE_IMAGE_DATE=$(curl -sI "https://ghcr.io/v2/epitech/coding-style-checker/manifests/latest" | grep -i "last-modified" | cut -d' ' -f2-)
+
+    if [[ -n "$REMOTE_IMAGE_DATE" && -n "$LOCAL_IMAGE_DATE" ]]; then
+        LOCAL_TIMESTAMP=$(date -d "$LOCAL_IMAGE_DATE" +%s 2>/dev/null || echo 0)
+        REMOTE_TIMESTAMP=$(date -d "$REMOTE_IMAGE_DATE" +%s 2>/dev/null || echo 0)
+
+        if [[ "$REMOTE_TIMESTAMP" -gt "$LOCAL_TIMESTAMP" ]]; then
+            echo "Downloading new image and cleaning old one..."
+            $BASE_EXEC_CMD pull "$IMAGE_NAME" && $BASE_EXEC_CMD image prune -f
+            echo "Download OK"
+        fi
+    fi
+}
 
 tput setaf 2
 echo "**/*/*/*/*/*/*/*/*/*/*/* CODING STYLE CHECKER EPITECH */*/*/*/*/*/*/*/*/*/*/*/**"
 tput sgr0
 
-$BASE_EXEC_CMD run --rm -i -v "$DELIVERY_DIR:/mnt/delivery" -v "$REPORTS_DIR:/mnt/reports" "$IMAGE_NAME" "/mnt/delivery" "/mnt/reports"
+if [[ "$#" -eq 2 && ( "$1" == "-hs" || "$1" == "--haskell" ) ]]; then
+    echo ""
+    echo "📌 Running Haskell Coding Style ..."
+    echo ""
 
-[[ -f "$EXPORT_FILE" ]] && echo "$(wc -l < "$EXPORT_FILE") coding style error(s) reported in "$EXPORT_FILE", $(tput sgr0; tput setaf 9; grep -c ": MAJOR:" "$EXPORT_FILE") major, $(tput sgr0; tput setaf 27; grep -c ": MINOR:" "$EXPORT_FILE") minor, $(tput sgr0; tput setaf 11; grep -c ": INFO:" "$EXPORT_FILE") info"
-tput sgr0; echo ""
+    pull_docker "$2"
 
-if [[ -f "/tmp/noge/coding-style-reports.log" ]]; then
-    cat /tmp/noge/coding-style-reports.log
+    HASKELL_DIR=$(my_readlink "$2")
+
+    excluded_dirs="Setup.hs:setup.hs:.git:.stack-work:test:tests:bonus"
+
+    LAMBDA_PATH=$($BASE_EXEC_CMD run --rm --entrypoint /bin/bash ghcr.io/epitech/coding-style-checker:latest -c "which lambdananas") 
+
+    # $BASE_EXEC_CMD run --rm --entrypoint /bin/bash ghcr.io/epitech/coding-style-checker:latest -c "which lambdananas"
+    $BASE_EXEC_CMD run --rm  --entrypoint $LAMBDA_PATH -v "$HASKELL_DIR:/mnt/haskell" "$IMAGE_NAME" "/mnt/haskell"
+    exit 0
+fi
+
+if [[ "$#" -eq 2 || "$#" -eq 1 ]]; then
+    echo ""
+    echo "📌 Running C Coding Style ..."
+    echo ""
+
+    pull_docker "$1"
+
+    $BASE_EXEC_CMD run --rm -i -v "$DELIVERY_DIR:/mnt/delivery" -v "$REPORTS_DIR:/mnt/reports" "$IMAGE_NAME" "/mnt/delivery" "/mnt/reports"
+
+    [[ -f "$EXPORT_FILE" ]] && echo "$(wc -l < "$EXPORT_FILE") coding style error(s) reported in "$EXPORT_FILE", $(tput sgr0; tput setaf 9; grep -c ": MAJOR:" "$EXPORT_FILE") major, $(tput sgr0; tput setaf 27; grep -c ": MINOR:" "$EXPORT_FILE") minor, $(tput sgr0; tput setaf 11; grep -c ": INFO:" "$EXPORT_FILE") info"
+    tput sgr0; echo ""
+
+    if [[ -f "/tmp/noge/coding-style-reports.log" ]]; then
+        cat /tmp/noge/coding-style-reports.log
+    fi
 fi
