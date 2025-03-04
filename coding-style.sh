@@ -40,7 +40,7 @@ if [[ "$#" -eq 1 && "$1" == "--help" ]]; then
     exit 0
 fi
 
-if [[ "$#" -gt 2 ]]; then
+if [[ "$#" -gt 2 || "$#" -eq 0 ]]; then
     cat_readme
     exit 1
 fi
@@ -126,4 +126,5 @@ if [[ "$#" -eq 2 || "$#" -eq 1 ]]; then
     if [[ -f "/tmp/noge/coding-style-reports.log" ]]; then
         cat /tmp/noge/coding-style-reports.log
     fi
+    exit 0
 fi
